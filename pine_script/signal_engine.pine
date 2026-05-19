@@ -1,0 +1,940 @@
+// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © Ahmadrezamaleki
+//@version=5
+//strategy("test06", shorttitle = "test06", max_bars_back=5000, overlay=true, pyramiding=0, initial_capital=1000, currency=currency.NONE,default_qty_type=strategy.cash , default_qty_value=1000, commission_value=0,max_labels_count = 500,max_lines_count = 500)
+indicator(title="N_BTs", shorttitle="N_BTs", overlay=true,max_labels_count = 500,max_lines_count = 500, max_bars_back=5000 )
+
+
+
+import HeWhoMustNotBeNamed/RecursiveAlerts/2 as ra
+import PineCoders/Time/3
+
+// var ext_alr = input.session("Telegram", "مقصد خروجی", options=["Telegram", "BingX", "XT"])
+
+// if ( ext_alr == "Telegram" )
+//     key = array.from("{Symbol}","{position}","{entry}","{tp1}","{tp2}","{tp3}","{stop}")
+//     Template ='\n
+//              \tSymbol : {Symbol}\n 
+//              \tPosition : {position}\n
+//              \tEnter : {entry}\n
+//              \tTp1 : {tp1}\n
+//              \tTp2 : {tp2}\n
+//              \tTp3 : {tp3}\n
+//              \Stop : {stop}\n
+        
+//          '
+
+//     inputTemplate = Template// input.text_area(Template,"alert Template")
+// else if ( ext_alr == "BingX" )
+key = array.from("{entry}","{entry2}","{stop}","{target1}","{target3}","{target2}","{valu}","{valexi1}","{valexi2}")
+Template = '{\n
+         \t"entry" : "{entry}",\n
+         \t"entry2" : "{entry2}",\n
+         \t"stop" : "{stop}",\n
+         \t"target1" : "{target1}",\n
+         \t"target3" : "{target3}",\n
+         \t"target2" : "{target2}",\n
+         \t"valu" : "{valu}",\n
+         \t"valexi1" : "{valexi1}",\n         
+         \t"valexi2" : "{valexi2}"\n   
+     }'
+
+inputTemplate = Template//input.text_area(Template,"alert Template")
+
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+truncate(number, decimals) =>
+    factor = math.pow(10, decimals)
+    int(number * factor) / factor
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+dirmov(len) =>
+	up = ta.change(high)
+	down = -ta.change(low)
+	plusDM = na(up) ? na : (up > down and up > 0 ? up : 0)
+	minusDM = na(down) ? na : (down > up and down > 0 ? down : 0)
+	truerange = ta.rma(ta.tr, len)
+	plus = fixnan(100 * ta.rma(plusDM, len) / truerange)
+	minus = fixnan(100 * ta.rma(minusDM, len) / truerange)
+	[plus, minus]
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////    
+adx(dilen, adxlen) =>
+	[plus, minus] = dirmov(dilen)
+	sum = plus + minus
+	adx = 100 * ta.rma(math.abs(plus - minus) / (sum == 0 ? 1 : sum), adxlen)
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+xau_ticker = "XAUUSD"
+eth_ticker = "ETH"
+matic_ticker = "MATIC"
+ada_ticker = "ADA"
+uni_ticker = "UNI"
+ftm_ticker = "FTM"
+sol_ticker = "SOL"
+chz_ticker = "CHZ"
+xrp_ticker = "XRP"
+arb_ticker = "ARB"
+atom_ticker = "ATOM"
+doge_ticker = "DOGE"
+btc_ticker = "BTC"
+ton_ticker = "TON"
+not_ticker = "NOT"
+bnb_ticker = "BNB"
+dot_ticker = "DOT"
+
+var string enter=na
+var float etp1=na
+var float etp2=na
+var float valexi2=na
+var float valexi1=na
+
+is_xau_chart = syminfo.ticker == xau_ticker
+is_eth_chart = syminfo.basecurrency == eth_ticker
+is_matic_chart = syminfo.basecurrency == matic_ticker
+is_ada_chart = syminfo.basecurrency == ada_ticker
+is_uni_chart = syminfo.basecurrency == uni_ticker
+is_ftm_chart = syminfo.basecurrency == ftm_ticker
+is_sol_chart = syminfo.basecurrency == sol_ticker
+is_chz_chart = syminfo.basecurrency == chz_ticker
+is_xrp_chart = syminfo.basecurrency == xrp_ticker
+is_arb_chart = syminfo.basecurrency == arb_ticker
+is_atom_chart = syminfo.basecurrency == atom_ticker
+is_doge_chart = syminfo.basecurrency == doge_ticker
+is_btc_chart = syminfo.basecurrency == btc_ticker
+is_ton_chart = syminfo.basecurrency == ton_ticker
+is_not_chart = syminfo.basecurrency == not_ticker
+is_bnb_chart = syminfo.basecurrency == bnb_ticker
+is_dot_chart = syminfo.basecurrency == dot_ticker
+///////////////////////////////////////////////////
+var lev = input.int(10, inline = '1',title="Leverage")
+var val = input.int(10, inline = '1',title="Allocated Capital")
+var contro = input.bool(false,group='Default settings',title="Manual Settings")
+
+var adxValue = input.bool(true,group='Trend Strength and Weakness Indicator', title='Analyzing Trend Strength and Weakness',display = display.none)
+var adxlen =input(16,group='Trend Strength and Weakness Indicator', title="ADX Smoothing")
+var dilen =input(16,group='Trend Strength and Weakness Indicator', title="DI Length")
+var insig =input.int(20,group='Trend Strength and Weakness Indicator', minval = 2, title="Adx Size")
+var indicatorLength = input.int(10,group='Trend Strength and Weakness Indicator', minval = 2, title="Indicator Length")
+var string tp = 'Choose an indicator source of which to base the SuperTrend on.'
+var string g1 = "Entry/Exit: SuperTrend Settings", var string gu = "UI Options"
+var len  = input.int(14, "Length", inline = '1', group = 'Trend Strength and Weakness Indicator')
+var mlt  =input.float(14, "      Factor", 1, 20, 0.5, inline = '1', group = 'Trend Strength and Weakness Indicator')
+
+var startingFactor = input.float(0.618,group='Fibonacci', title="Starting Factor", minval = 0)
+var incrementFactor_1 =input.float(0.382,group='Fibonacci', minval = 0, step = .10, title="Increment Factor")
+
+
+var tp_level1 = input.float(group='Profit & Stop Settings',title="Take Profit Level 1 (%)", defval=0.75)
+var tp_level2 = input.float(group='Profit & Stop Settings',title="Take Profit Level 2 (%)", defval=1.5)
+var tp_level3 = input.float(group='Profit & Stop Settings',title="Take Profit Level 3 (%)", defval=3)
+var tp_percent1 = input.int(group='Profit & Stop Settings',title="Take Profit Percent 1 (%)", defval=70)
+var tp_percent2 = input.int(group='Profit & Stop Settings',title="Take Profit Percent 2 (%)", defval=15)
+var tp_percent3 = input.int(group='Profit & Stop Settings',title="Take Profit Percent 3 (%)", defval=15)
+var stoplossPercent = input.float(group='Profit & Stop Settings',title='Stop Loss (%)', defval=1.5, minval=0.01)
+
+var a = input(4, title='Key Value. \'This changes the sensitivity\'')
+var c = input(550, title='ATR Period')
+
+var h = input.bool(false, group='Filter Settings',title='Oscillator', inline = '1',display = display.none)
+var useRsiFilter = input.bool(true, group='Filter Settings', inline = '1', title="RSI")
+var useEmaFilter = input.bool(true, group='Filter Settings', inline = '1', title="EMA")
+var useIchimokuFilter = input.bool(true, group='Filter Settings', inline = '1', title="BASE")
+
+var rsiLengthInput = input.int(26, group='Filter Settings', minval=1, title="RSI Size")
+var inputEmaLength = input.int(215, group='Filter Settings', title="EMA Size", minval=1)
+var inputIchimokuConversionLineLength =input.int(175, group='Filter Settings', title="BASE Size", minval=1)
+
+
+
+
+
+// =============================================================================
+if contro==false
+    if (is_xau_chart)
+        adxlen := 18
+        dilen := 20
+        insig :=13
+        startingFactor := 0.618
+        incrementFactor_1 := 0.382
+        indicatorLength := 13
+        h := false
+        useRsiFilter:=true
+        useEmaFilter:=true
+        useIchimokuFilter:=true
+        tp_level1:=0.25
+        tp_percent1:=70
+        tp_level2:=0.5
+        tp_percent2:=15
+        tp_level3:=1
+        tp_percent3:=15
+        a:=4
+        c:=550
+        stoplossPercent:=0.5
+        rsiLengthInput:=26
+        inputEmaLength:=200
+        inputIchimokuConversionLineLength:=100
+        len:= 17
+        mlt:= 14.5
+    else if (is_atom_chart)
+        adxlen := 18
+        dilen := 16
+        insig :=20
+        startingFactor := 0.618
+        incrementFactor_1 := 0.382
+        indicatorLength := 12
+        h := false
+        useRsiFilter:=true
+        useEmaFilter:=true
+        useIchimokuFilter:=true
+        tp_level1:=1
+        tp_percent1:=60
+        tp_level2:=2
+        tp_percent2:=25
+        tp_level3:=4
+        tp_percent3:=15
+        a:=4
+        c:=550
+        stoplossPercent:=2
+        rsiLengthInput:=26
+        inputEmaLength:=215
+        inputIchimokuConversionLineLength:=215
+        len:= 14
+        mlt:= 14
+    // else if (is_matic_chart)
+    //     h := false
+    //     useRsiFilter:=true
+    //     useEmaFilter:=true
+    //     useIchimokuFilter:=false
+    //     tp1:=0.6
+    //     q1:=50
+    //     tp2:=2
+    //     q2:=30
+    //     tp3:=3.6
+    //     q3:=20
+    //     stoplossPercent:=1.2
+    //     inputEmaLength:=190
+    //     inputIchimokuConversionLineLength:=150
+    // else if (is_ada_chart)
+    //     h := true
+    //     useRsiFilter:=false
+    //     useEmaFilter:=false
+    //     useIchimokuFilter:=false
+    //     tp1:=0.8
+    //     q1:=50
+    //     tp2:=2
+    //     q2:=30
+    //     tp3:=3.6
+    //     q3:=20
+    //     stoplossPercent:=1.5
+    //     inputEmaLength:=190
+    //     inputIchimokuConversionLineLength:=150
+    // else if (is_uni_chart)
+    //     h := false
+    //     useRsiFilter:=true
+    //     useEmaFilter:=true
+    //     useIchimokuFilter:=true
+    //     tp1:=0.8
+    //     q1:=50
+    //     tp2:=2
+    //     q2:=30
+    //     tp3:=3.6
+    //     q3:=20
+    //     stoplossPercent:=1.5
+    //     inputEmaLength:=100
+    //     inputIchimokuConversionLineLength:=90
+    // else if (is_ftm_chart)
+    //     h := false
+    //     useRsiFilter:=true
+    //     useEmaFilter:=true
+    //     useIchimokuFilter:=true
+    //     tp1:=0.8
+    //     q1:=50
+    //     tp2:=2
+    //     q2:=30
+    //     tp3:=3.6
+    //     q3:=20
+    //     stoplossPercent:=1.5
+    //     inputEmaLength:=190
+    //     inputIchimokuConversionLineLength:=150
+    else if (is_sol_chart)
+        adxlen := 23
+        dilen := 24
+        insig :=19
+        startingFactor := 0.618
+        incrementFactor_1 := 0.382
+        indicatorLength := 10
+        h := false
+        useRsiFilter:=true
+        useEmaFilter:=true
+        useIchimokuFilter:=true
+        tp_level1:=0.75
+        tp_percent1:=70
+        tp_level2:=1.5
+        tp_percent2:=15
+        tp_level3:=3
+        tp_percent3:=15
+        a:=4
+        c:=550
+        stoplossPercent:=1.5
+        rsiLengthInput:=26
+        inputEmaLength:=190
+        inputIchimokuConversionLineLength:=150
+        len:= 14
+        mlt:= 11.5
+    else if (is_chz_chart)
+        adxlen := 22
+        dilen := 24
+        insig :=19
+        startingFactor := 0.618
+        incrementFactor_1 := 0.382
+        indicatorLength := 11
+        h := false
+        useRsiFilter:=false
+        useEmaFilter:=false
+        useIchimokuFilter:=false
+        tp_level1:=0.75
+        tp_percent1:=70
+        tp_level2:=1.5
+        tp_percent2:=15
+        tp_level3:=3
+        tp_percent3:=15
+        a:=4
+        c:=550
+        stoplossPercent:=1.5
+        rsiLengthInput:=26
+        inputEmaLength:=200
+        inputIchimokuConversionLineLength:=180
+        len:= 14
+        mlt:= 16
+    // else if (is_arb_chart)
+    //     h := true
+    //     useRsiFilter:=true
+    //     useEmaFilter:=false
+    //     useIchimokuFilter:=false
+    //     tp1:=0.8
+    //     q1:=50
+    //     tp2:=2
+    //     q2:=30
+    //     tp3:=3.6
+    //     q3:=20
+    //     stoplossPercent:=1.5
+    //     inputEmaLength:=190
+    //     inputIchimokuConversionLineLength:=150
+    // else if (is_eth_chart)
+    //     h := true
+    //     useRsiFilter:=false
+    //     useEmaFilter:=true
+    //     useIchimokuFilter:=false
+    //     tp1:=0.6
+    //     q1:=50
+    //     tp2:=2
+    //     q2:=30
+    //     tp3:=3.6
+    //     q3:=20
+    //     stoplossPercent:=1.2
+    //     inputEmaLength:=190
+    //     inputIchimokuConversionLineLength:=150
+    else if (is_btc_chart)
+        adxlen := 16
+        dilen := 16
+        insig :=20
+        startingFactor := 0.618
+        incrementFactor_1 := 0.382
+        indicatorLength := 10
+        h := false
+        useRsiFilter:=true
+        useEmaFilter:=true
+        useIchimokuFilter:=true
+        tp_level1:=0.75
+        tp_percent1:=70
+        tp_level2:=1.5
+        tp_percent2:=15
+        tp_level3:=3
+        tp_percent3:=15
+        a:=4
+        c:=550
+        stoplossPercent:=1.5
+        rsiLengthInput:=26
+        inputEmaLength:=215
+        inputIchimokuConversionLineLength:=175
+        len:= 14
+        mlt:= 14
+    // else if (is_ton_chart)
+    //     h := true
+    //     useRsiFilter:=true
+    //     useEmaFilter:=false
+    //     useIchimokuFilter:=false
+    //     tp1:=1
+    //     q1:=50
+    //     tp2:=2
+    //     q2:=30
+    //     tp3:=3.6
+    //     q3:=20
+    //     stoplossPercent:=2
+    //     inputEmaLength:=190
+    //     inputIchimokuConversionLineLength:=150    
+    else if (is_not_chart)
+        adxlen := 18
+        dilen := 24
+        insig :=23
+        startingFactor := 0.618
+        incrementFactor_1 := 0.382
+        indicatorLength := 13
+        h := false
+        useRsiFilter:=false
+        useEmaFilter:=true
+        useIchimokuFilter:=true
+        tp_level1:=0.75
+        tp_percent1:=70
+        tp_level2:=1.5
+        tp_percent2:=15
+        tp_level3:=3
+        tp_percent3:=15
+        a:=4
+        c:=550
+        stoplossPercent:=1.5
+        rsiLengthInput:=26
+        inputEmaLength:=200
+        inputIchimokuConversionLineLength:=200
+        len:= 13
+        mlt:= 14.5
+    else if (is_bnb_chart)
+        adxlen := 17
+        dilen := 17
+        insig :=20
+        startingFactor := 0.5
+        incrementFactor_1 := 0.382
+        indicatorLength := 10
+        h := false
+        useRsiFilter:=true
+        useEmaFilter:=true
+        useIchimokuFilter:=true
+        tp_level1:=0.75
+        tp_percent1:=70
+        tp_level2:=1.5
+        tp_percent2:=15
+        tp_level3:=3
+        tp_percent3:=15
+        a:=4
+        c:=550
+        stoplossPercent:=1.5
+        rsiLengthInput:=26
+        inputEmaLength:=215
+        inputIchimokuConversionLineLength:=185
+        len:= 14
+        mlt:= 14
+    // else if (is_doge_chart)
+    //     h := true
+    //     useRsiFilter:=true
+    //     useEmaFilter:=true
+    //     useIchimokuFilter:=false
+    //     tp1:=1
+    //     q1:=50
+    //     tp2:=2
+    //     q2:=30
+    //     tp3:=4
+    //     q3:=20
+    //     stoplossPercent:=2
+    //     inputEmaLength:=50
+    //     inputIchimokuConversionLineLength:=145  
+    // else if (is_dot_chart)
+    //     h := true
+    //     useRsiFilter:=false
+    //     useEmaFilter:=false
+    //     useIchimokuFilter:=false
+    //     tp1:=1
+    //     q1:=50
+    //     tp2:=2
+    //     q2:=30
+    //     tp3:=4
+    //     q3:=20
+    //     stoplossPercent:=2
+    //     inputEmaLength:=190
+    //     inputIchimokuConversionLineLength:=150
+    else if (is_eth_chart)
+        adxlen := 21
+        dilen := 19
+        insig :=24
+        startingFactor := 0.5
+        incrementFactor_1 := 0.382
+        indicatorLength := 10
+        h := false
+        useRsiFilter:=false
+        useEmaFilter:=true
+        useIchimokuFilter:=true
+        tp_level1:=0.75
+        tp_percent1:=70
+        tp_level2:=1.5
+        tp_percent2:=15
+        tp_level3:=3
+        tp_percent3:=15
+        a:=4
+        c:=550
+        stoplossPercent:=1.5
+        rsiLengthInput:=26
+        inputEmaLength:=220
+        inputIchimokuConversionLineLength:=90
+        len:= 15
+        mlt:= 14.5
+// =============================================================================
+sig = adx(dilen, adxlen)
+adxFilter = sig > insig
+
+tradeDirectionChoice ="Both"// input.string("Both", "Trading Direction", options=["Both", "Long", "Short"])
+indicatorSource =close// input.source(close, title="Indicator Source")
+
+normalizeMethod ="None" //input.string('None', options = ['None', 'Max-Min', 'Absolute Sum'], title="Normalization Method")
+
+// =============================================================================
+var float inter_price=na
+var int count=0
+var int tp1_count=0
+var int tp2_count=0
+var int tp3_count=0
+var int stop_count=0
+
+var string trend=na
+var int tp1_chek=na
+var int tp2_chek=na
+var int tp3_chek=na
+var int stop_chek=na
+
+emaFilter = ta.ema(close, inputEmaLength)
+
+// Ichimoku Filter settings
+//var int inputIchimokuConversionLineLength = input.int(150, title="طول شاخص دوم", minval=1)
+high9 = ta.highest(high, inputIchimokuConversionLineLength)
+low9 = ta.lowest(low, inputIchimokuConversionLineLength)
+ichimokuConversionLine = (high9 + low9) / 2
+
+upt = ta.rma(math.max(ta.change(close), 0), rsiLengthInput)
+downt = ta.rma(-math.min(ta.change(close), 0), rsiLengthInput)
+rsi = downt == 0 ? 100 : upt == 0 ? 0 : 100 - (100 / (1 + upt / downt))
+
+srcc = h ? request.security(ticker.heikinashi(syminfo.tickerid), timeframe.period, close, lookahead=barmerge.lookahead_off) : close
+xATR = ta.atr(c)
+nLoss = a * xATR
+
+
+xATRTrailingStop = 0.0
+iff_1 = srcc > nz(xATRTrailingStop[1], 0) ? srcc - nLoss : srcc + nLoss
+iff_2 = srcc < nz(xATRTrailingStop[1], 0) and srcc[1] < nz(xATRTrailingStop[1], 0) ? math.min(nz(xATRTrailingStop[1]), srcc + nLoss) : iff_1
+xATRTrailingStop := srcc > nz(xATRTrailingStop[1], 0) and srcc[1] > nz(xATRTrailingStop[1], 0) ? math.max(nz(xATRTrailingStop[1]), srcc - nLoss) : iff_2
+
+pos = 0
+iff_3 = srcc[1] > nz(xATRTrailingStop[1], 0) and srcc < nz(xATRTrailingStop[1], 0) ? -1 : nz(pos[1], 0)
+pos := srcc[1] < nz(xATRTrailingStop[1], 0) and srcc > nz(xATRTrailingStop[1], 0) ? 1 : iff_3
+
+ema = ta.ema(srcc, 1)
+above = ta.crossover(ema, xATRTrailingStop)
+below = ta.crossover(xATRTrailingStop, ema)
+
+buy = srcc > xATRTrailingStop and above
+sell = srcc < xATRTrailingStop and below
+// =============================================================================
+
+var float longEntryTime = na
+var float shortEntryTime = na
+var bool recentlyExitedLong = false
+var bool recentlyExitedShort = false
+
+// Supertrend Type
+type supertrend
+    float upper = hl2
+    float lower = hl2
+    float output
+    float perf = 0
+    float factor
+    int trend = 0
+
+norm(value, diffs, den)=>
+    normalizeMethod = switch normalizeMethod
+        'Max-Min' => (value - diffs.min()) / diffs.range()
+        'Absolute Sum' => value / den
+        => value
+
+// Function to calculate SuperTrend Polyfactor Oscillator
+SuperTrendPolyfactorOscillator(indicatorSource, indicatorLength, startingFactor, incrementFactor, normalizeMethod) =>
+    var holder = array.new<supertrend>(0)
+    diffs = array.new<float>(0)
+    den = 0.0
+    factor = startingFactor
+    
+    // Populate supertrend type array
+    if barstate.isfirst
+        for i = 0 to 19
+            holder.push(supertrend.new())
+
+    atr = ta.atr(indicatorLength)
+
+    for i = 0 to 19
+        get_spt = holder.get(i)
+        atr = ta.atr(indicatorLength)
+        up = hl2 + atr * (factor)
+        dn = hl2 - atr * (factor)
+
+        get_spt.trend := indicatorSource > get_spt.upper ? 1 : indicatorSource < get_spt.lower ? 0 : get_spt.trend
+        get_spt.upper := indicatorSource[1] < get_spt.upper ? math.min(up, get_spt.upper) : up
+        get_spt.lower := indicatorSource[1] > get_spt.lower ? math.max(dn, get_spt.lower) : dn
+        get_spt.output := get_spt.trend == 1 ? get_spt.lower : get_spt.upper
+
+        diffs.push(indicatorSource - get_spt.output)
+        den += math.abs(indicatorSource - get_spt.output)
+        factor += incrementFactor 
+    
+    median = norm(diffs.median(), diffs, den)
+    stdev = normalizeMethod != 'Max-Min' ? norm(diffs.stdev(), diffs, den) : na
+    [median, stdev, diffs, den]
+
+// Access the SuperTrend Polyfactor Oscillator values
+[medianValue, stdevValue, diffs, den] = SuperTrendPolyfactorOscillator(indicatorSource, indicatorLength, startingFactor, incrementFactor_1, normalizeMethod)
+
+// Style
+mesh =true// input(true, inline = 'mesh', group = 'Style')
+upCss =color.new(#089981, 90)// input.color(color.new(#089981, 90), '', inline = 'mesh', group = 'Style')
+dnCss =color.new(#f23645, 90)// input.color(, '', inline = 'mesh', group = 'Style')
+
+
+type bar
+    float o = na
+    float h = na
+    float l = na
+    float c = na
+
+type supertrend_
+    float s = na
+    int   d = na
+
+method src(bar b, simple string src) =>
+    float x = switch src
+        'oc2'   => math.avg(b.o, b.c)
+        'hl2'   => math.avg(b.h, b.l)
+        'hlc3'  => math.avg(b.h, b.l, b.c)
+        'ohlc4' => math.avg(b.o, b.h, b.l, b.c)
+        'hlcc4' => math.avg(b.h, b.l, b.c, b.c)
+    x
+
+method atr(bar b, simple int len) =>
+    float tr = 
+         na(b.h[1]) ? 
+         b.h - b.l  : 
+         math.max(
+             math.max(
+                 b.h - b.l, 
+                 math.abs(b.h - b.c[1])), 
+             math.abs    (b.l - b.c[1]))
+    len == 1 ? tr : ta.rma(tr, len)
+
+method st(bar b, simple float factor, simple int len) =>
+	float atr = b.atr(len)
+	float up  = b.src('hl2') + factor * atr
+    up       := up < nz(up[1]) or b.c[1] > nz(up[1]) ? up : nz(up[1])
+    float dn  = b.src('hl2') - factor * atr
+    dn       := dn > nz(dn[1]) or b.c[1] < nz(dn[1]) ? dn : nz(dn[1])
+	
+    float st  = na
+    int   dir = na
+    dir := switch
+        na(atr[1])         => 1
+        st[1] == nz(up[1]) => dir := b.c > up ? -1 : +1
+        =>                    dir := b.c < dn ? +1 : -1
+	st  :=                    dir == -1 ? dn : up
+	
+    supertrend_.new(st, dir)
+
+
+src  = medianValue
+
+clbl =true// input.bool(true, "Contrarian Signals", group = gu)
+colu =#008cff// input.color(#008cff, "Bull Color", group = gu)
+cold = #ff4800//input.color(#ff4800, "Bear Color", group = gu)
+
+bar        b  = bar.new(nz(src[1]), math.max(nz(src[1]), src), math.min(nz(src[1]), src), src)
+float      tr = b.atr(len)
+supertrend_ st = b.st(mlt, len)
+
+color cst = switch st.d
+    +1 => cold
+    -1 => colu
+    
+
+bool scon = clbl and math.sign(ta.change(st.d)) ==  1 ? true : false
+bool bcon = clbl and math.sign(ta.change(st.d)) == -1 ? true : false
+
+// Entry/Exit conditions
+enterLongCondition = st.d < 0 and medianValue > 0 
+enterShortCondition = st.d > 0 and medianValue < 0
+
+//------------------------------------------------------------------------- STOP 
+
+
+if ( (((inter_price-low)*100)/inter_price)>=stoplossPercent and stop_chek!=1 and trend=="long" and tp3_chek!=1)
+    //strategy.close('long Position', qty_percent=100, comment='SL Long')
+    if (tp1_chek==0 and tp2_chek==0 and tp3_chek==0)
+        label.new(bar_index,low,text = "STOP-STOP",style= label.style_label_up,color =#53008e,textcolor = color.white)
+        stop_count:=stop_count+1
+        //trend:="non" 
+    trend:="non"
+    stop_chek:=1
+    tp1_chek:=0
+    tp2_chek:=0
+    tp3_chek:=0    
+
+    entry = "0"
+    entry2 = "0"
+    stop = "0"
+    target = "0"
+    target2 = "0"
+    valu = "0"
+    valexi1 := 0
+    valexi2 := 0
+    values = array.from ( entry ,entry2 ,stop , target, target2, syminfo.basecurrency + "-" + syminfo.currency , valu, str.tostring(valexi1), str.tostring(valexi2))
+    alertMessage = ra.updateAlertTemplate(inputTemplate,key,values)
+
+    alert(alertMessage,alert.freq_once_per_bar)
+
+
+
+if ( (((high-inter_price)*100)/inter_price)>=stoplossPercent and stop_chek!=1 and trend=="short" and tp3_chek!=1)
+    //strategy.close('Short Position', qty_percent=100, comment='SL Short')
+    if (tp1_chek==0 and tp2_chek==0 and tp3_chek==0)
+        label.new(bar_index,low,text = "STOP-STOP",style= label.style_label_up,color =#53008e,textcolor = color.white)
+        stop_count:=stop_count+1
+        //trend:="non" 
+    trend:="non"
+    stop_chek:=1
+    tp1_chek:=0
+    tp2_chek:=0
+    tp3_chek:=0  
+
+    entry = "0"
+    entry2 = "0"
+    stop = "0"
+    target = "0"
+    target2 = "0"
+    valu = "0"
+    valexi1 := 0
+    valexi2 := 0
+    values = array.from ( entry ,entry2 ,stop , target, target2, syminfo.basecurrency + "-" + syminfo.currency , valu, str.tostring(valexi1), str.tostring(valexi2))
+    alertMessage = ra.updateAlertTemplate(inputTemplate,key,values)
+    alert(alertMessage,alert.freq_once_per_bar)
+
+// =============================================================================
+//--------------------------------------------------------- PROFIT---------------------------------------------------------
+// =============================================================================
+
+tp_price1_long = (inter_price+(inter_price*(tp_level1*0.01))) // strategy.position_avg_price * (1 + tp_level1 / 100) 
+tp_price2_long = (inter_price+(inter_price*(tp_level2*0.01))) //strategy.position_avg_price * (1 + tp_level2 / 100) 
+tp_price3_long = (inter_price+(inter_price*(tp_level3*0.01))) //strategy.position_avg_price * (1 + tp_level3 / 100) 
+
+tp_price1_short = (inter_price-(inter_price*(tp_level1*0.01))) //strategy.position_avg_price * (1 - tp_level1 / 100) 
+tp_price2_short = (inter_price-(inter_price*(tp_level2*0.01))) //strategy.position_avg_price * (1 - tp_level2 / 100) 
+tp_price3_short = (inter_price-(inter_price*(tp_level3*0.01))) //strategy.position_avg_price * (1 - tp_level3 / 100) 
+
+// Exit portions of the position at each take profit level
+//if strategy.position_size > 0
+if (trend=="long" and tp1_chek==0 and high>=tp_price1_long and stop_chek==0 )    
+    //strategy.exit("Take Profit 1", from_entry="Long Position", qty_percent=tp_percent1, limit=tp_price1_long)
+    label.new(bar_index,tp_price1_long,text = "TP1",style= label.style_label_right,color =color.rgb(244, 109, 19)) 
+    tp1_chek:=1
+    tp1_count:=tp1_count+1
+if (trend=="long" and tp2_chek==0 and high>=tp_price2_long and stop_chek==0 )        
+    //strategy.exit("Take Profit 2", from_entry="Long Position", qty_percent=tp_percent2, limit=tp_price2_long)
+    label.new(bar_index,tp_price2_long,text = "TP2",style= label.style_label_right,color =color.rgb(244, 109, 19)) 
+    tp2_chek:=1
+    tp2_count:=tp2_count+1
+
+if (trend=="long" and tp3_chek==0 and high>=tp_price3_long and stop_chek==0 )        
+    //strategy.exit("Take Profit 3", from_entry="Long Position", qty_percent=tp_percent3, limit=tp_price3_long)
+    label.new(bar_index,tp_price3_long,text = "TP3",style= label.style_label_right,color =color.rgb(244, 109, 19)) 
+    //strategy.close("Long Position")
+    tp3_chek:=1
+    tp3_count:=tp3_count+1
+    //trend:="non"
+    entry = "0"
+    entry2 = "0"
+    stop = "0"
+    target = "0"
+    target2 = "0"
+    valu = "0"
+    valexi1 := 0
+    valexi2 := 0
+    values = array.from ( entry ,entry2 ,stop , target, target2, syminfo.basecurrency + "-" + syminfo.currency , valu, str.tostring(valexi1), str.tostring(valexi2))
+    alertMessage = ra.updateAlertTemplate(inputTemplate,key,values)
+    alert(alertMessage,alert.freq_once_per_bar) 
+
+
+//if strategy.position_size < 0
+if (trend=="short" and tp1_chek==0 and low<=tp_price1_short and stop_chek==0 )    
+    //strategy.exit("Take Profit 1", from_entry="Short Position", qty_percent=tp_percent1, limit=tp_price1_short)
+    label.new(bar_index,tp_price1_short,text = "TP1",style= label.style_label_right,color =color.rgb(244, 109, 19)) 
+    tp1_chek:=1
+    tp1_count:=tp1_count+1
+
+if (trend=="short" and tp2_chek==0 and low<=tp_price2_short and stop_chek==0 )
+    //strategy.exit("Take Profit 2", from_entry="Short Position", qty_percent=tp_percent2, limit=tp_price2_short)
+    label.new(bar_index,tp_price2_short,text = "TP2",style= label.style_label_right,color =color.rgb(244, 109, 19)) 
+    tp2_chek:=1
+    tp2_count:=tp2_count+1
+
+if (trend=="short" and tp3_chek==0 and low<=tp_price3_short and stop_chek==0 )
+    //strategy.close("Short Position")
+    //strategy.exit("Take Profit 3", from_entry="Short Position", qty_percent=tp_percent3, limit=tp_price3_short)
+    label.new(bar_index,tp_price3_short,text = "TP3",style= label.style_label_right,color =color.rgb(244, 109, 19)) 
+    tp3_chek:=1
+    tp3_count:=tp3_count+1
+    //trend:="non"
+    entry = "0"
+    entry2 = "0"
+    stop = "0"
+    target = "0"
+    target2 = "0"
+    valu = "0"
+    valexi1 := 0
+    valexi2 := 0
+    values = array.from ( entry ,entry2 ,stop , target, target2, syminfo.basecurrency + "-" + syminfo.currency , valu, str.tostring(valexi1), str.tostring(valexi2))
+    alertMessage = ra.updateAlertTemplate(inputTemplate,key,values)
+    alert(alertMessage,alert.freq_once_per_bar)
+
+//--------------------------------------------------------- long---------------------------------------------------------
+
+// Check trade direction choice before executing trade entries.
+if (enterLongCondition and trend!="long" and (tradeDirectionChoice == "Long" or tradeDirectionChoice == "Both") ) and ((useRsiFilter ? rsi > 50 : true) and
+   (useEmaFilter ? close > emaFilter : true) and (useIchimokuFilter ? close > ichimokuConversionLine : true) and (adxValue ? sig > insig : true)and (barstate.isconfirmed))
+    // if (strategy.position_size < 0)
+    //     strategy.close("Short Position")
+    // strategy.entry("Long Position", strategy.long)
+    label.new(bar_index,low,text = "LONG",style= label.style_label_up,color =color.green,textcolor = color.white)
+    trend:="long"
+    stop_chek:=0
+    tp1_chek:=0
+    tp2_chek:=0
+    tp3_chek:=0   
+    inter_price:=close
+    count:=count+1
+    longEntryTime := time
+    recentlyExitedLong := false
+    recentlyExitedShort := false
+
+    if (close<0.001)
+        etp1:= truncate((close+(close*(tp_level1*0.01))),6)
+        etp2:= truncate((close+(close*(tp_level2*0.01))),6)
+        valexi1 := truncate(((((val/close)*lev)/100)*tp_percent1),2)
+        valexi2 := truncate(((((val/close)*lev)/100)*tp_percent2),2)
+    if (close<1 and close>0.001)
+        etp1:= truncate((close+(close*(tp_level1*0.01))),4)
+        etp2:= truncate((close+(close*(tp_level2*0.01))),4)
+        valexi1 := truncate(((((val/close)*lev)/100)*tp_percent1),2)
+        valexi2 := truncate(((((val/close)*lev)/100)*tp_percent2),2)
+    if (close<1000 and close>100)
+        etp1:= truncate((close+(close*(tp_level1*0.01))),2)
+        etp2:= truncate((close+(close*(tp_level2*0.01))),2)
+        valexi1 := truncate(((((val/close)*lev)/100)*tp_percent1),4)
+        valexi2 := truncate(((((val/close)*lev)/100)*tp_percent2),4)   
+    if (close<100 and close>1)
+        etp1:= truncate((close+(close*(tp_level1*0.01))),3)
+        etp2:= truncate((close+(close*(tp_level2*0.01))),3)
+        valexi1 := truncate(((((val/close)*lev)/100)*tp_percent1),4)
+        valexi2 := truncate(((((val/close)*lev)/100)*tp_percent2),4)            
+    if (close>1000)
+        etp1:= truncate((close+(close*(tp_level1*0.01))),0)
+        etp2:= truncate((close+(close*(tp_level2*0.01))),0)
+        valexi1 := truncate(((((val/close)*lev)/100)*tp_percent1),5)
+        valexi2 := truncate(((((val/close)*lev)/100)*tp_percent2),5)
+
+    entry = "LONG"
+    entry2 = "BUY"
+    stop = "SELL"
+    valu =str.tostring(close)// str.tostring(truncate(((val/close)*lev),4))
+    target = str.tostring(etp1)
+    target2 = str.tostring(etp2)
+    // valexi1 := (valu1*tp_percent1)/100
+    // valexi2 := (valu1*tp_percent2)/100
+    //valu = str.tostring(valu1)
+    values = array.from ( entry ,entry2 ,stop , target, target2, syminfo.basecurrency + "-" + syminfo.currency ,valu , str.tostring(valexi1),str.tostring(valexi2))
+    alertMessage = ra.updateAlertTemplate(inputTemplate,key,values)
+    alert(alertMessage,alert.freq_once_per_bar)
+
+//--------------------------------------------------------- short---------------------------------------------------------
+
+if (enterShortCondition and trend!="short"  and (tradeDirectionChoice == "Short" or tradeDirectionChoice == "Both") )   and ((useRsiFilter ? rsi < 50 : true) and 
+   (useEmaFilter ? close < emaFilter : true) and (useIchimokuFilter ? close < ichimokuConversionLine : true) and (adxValue ? sig > insig : true) and (barstate.isconfirmed))
+    // if (strategy.position_size > 0)
+    //     strategy.close("Long Position")
+    // strategy.entry("Short Position", strategy.short)
+    label.new(bar_index,high,text = "SHORT",style= label.style_label_down,color =color.rgb(156, 14, 14),textcolor = color.white)
+    trend:="short"
+    stop_chek:=0
+    tp1_chek:=0
+    tp2_chek:=0
+    tp3_chek:=0   
+    count:=count+1    
+    inter_price:=close
+    shortEntryTime := time
+    recentlyExitedShort := false
+    recentlyExitedLong := false
+
+    if (close<0.001)
+        etp1:= truncate((close-(close*(tp_level1*0.01))),6)
+        etp2:= truncate((close-(close*(tp_level2*0.01))),6)
+        valexi1 := truncate(((((val/close)*lev)/100)*tp_percent1),2)
+        valexi2 := truncate(((((val/close)*lev)/100)*tp_percent2),2)
+    if (close<1 and close>0.001)
+        etp1:= truncate((close-(close*(tp_level1*0.01))),4)
+        etp2:= truncate((close-(close*(tp_level2*0.01))),4)
+        valexi1 := truncate(((((val/close)*lev)/100)*tp_percent1),2)
+        valexi2 := truncate(((((val/close)*lev)/100)*tp_percent2),2)
+    if (close<1000 and close>100)
+        etp1:= truncate((close-(close*(tp_level1*0.01))),2)
+        etp2:= truncate((close-(close*(tp_level2*0.01))),2)
+        valexi1 := truncate(((((val/close)*lev)/100)*tp_percent1),4)
+        valexi2 := truncate(((((val/close)*lev)/100)*tp_percent2),4)
+    if (close<100 and close>1)
+        etp1:= truncate((close+(close*(tp_level1*0.01))),3)
+        etp2:= truncate((close+(close*(tp_level2*0.01))),3)
+        valexi1 := truncate(((((val/close)*lev)/100)*tp_percent1),4)
+        valexi2 := truncate(((((val/close)*lev)/100)*tp_percent2),4)         
+    if (close>1000)
+        etp1:= truncate((close-(close*(tp_level1*0.01))),0)
+        etp2:= truncate((close-(close*(tp_level2*0.01))),0)
+        valexi1 := truncate(((((val/close)*lev)/100)*tp_percent1),5)
+        valexi2 := truncate(((((val/close)*lev)/100)*tp_percent2),5)
+
+    entry = "SHORT"
+    entry2 = "SELL"
+    stop = "BUY"
+    valu =str.tostring(close) //str.tostring(truncate(((val/close)*lev),4))
+    target = str.tostring(etp1)
+    target2 = str.tostring(etp2)
+    // valexi1 := (valu1*tp_percent1)/100
+    // valexi2 := (valu1*tp_percent2)/100
+    // valu = str.tostring(valu1)
+
+    values = array.from ( entry ,entry2 ,stop , target, target2, syminfo.basecurrency + "-" + syminfo.currency , valu, str.tostring(valexi1), str.tostring(valexi2))
+    alertMessage = ra.updateAlertTemplate(inputTemplate,key,values)
+    alert(alertMessage,alert.freq_once_per_bar)
+
+// =============================================================================
+table steps_amount = table.new(position.bottom_left, columns=13, rows=2,frame_width=1, frame_color=color.rgb(54, 58, 69), border_width=1, border_color=#cbd5de,bgcolor =color.rgb(166, 182, 195))//color.rgb(76, 175, 80)
+table.cell(steps_amount, 0, 0, "        \n  ", text_color=#000000, text_size=size.small)
+table.cell(steps_amount, 2, 0, "N Of\nTP1", text_color=#000000, text_size=size.small)
+table.cell(steps_amount, 3, 0, "N Of\nTP2", text_color=#000000, text_size=size.small)
+table.cell(steps_amount, 4, 0, "N Of\nTP3", text_color=#000000, text_size=size.small)
+table.cell(steps_amount, 5, 0, "N Of\nStop", text_color=#000000, text_size=size.small)
+table.cell(steps_amount, 7, 0, "Profit\n( % )", text_color=#000000, text_size=size.small)
+table.cell(steps_amount, 8, 0, "N of\nPosition", text_color=#000000, text_size=size.small)
+table.cell(steps_amount, 9, 0, "Win rate\nTp1", text_color=#000000, text_size=size.small)
+table.cell(steps_amount, 10, 0, "Win rate\nTp2", text_color=#000000, text_size=size.small)
+table.cell(steps_amount, 11, 0, "Win rate\nTp3", text_color=#000000, text_size=size.small)
+table.cell(steps_amount,12, 0, "Win rate\nAVR", text_color=#000000, text_size=size.small)
+
+table.cell(steps_amount, 0, 1, "   ", text_color=#000000, text_size=size.small,bgcolor =color.rgb(166, 182, 195) )
+table.cell(steps_amount, 2, 1, str.tostring(tp1_count), text_color=#000000, text_size=size.small,bgcolor =color.rgb(166, 182, 195))
+table.cell(steps_amount, 3, 1, str.tostring(tp2_count), text_color=#000000, text_size=size.small,bgcolor =color.rgb(166, 182, 195))
+table.cell(steps_amount, 4, 1, str.tostring(tp3_count), text_color=#000000, text_size=size.small,bgcolor =color.rgb(166, 182, 195))
+table.cell(steps_amount, 5, 1, str.tostring(stop_count), text_color=#000000, text_size=size.small,bgcolor =color.rgb(166, 182, 195))
+table.cell(steps_amount, 7, 1, str.tostring("profit"), text_color=#000000, text_size=size.small,bgcolor =color.rgb(166, 182, 195))
+table.cell(steps_amount, 8, 1, str.tostring(count), text_color=#000000,bgcolor =color.rgb(166, 182, 195))
+table.cell(steps_amount, 9, 1, str.tostring(truncate(((tp1_count*100)/count),2)), text_color=#000000, text_size=size.small,bgcolor =color.rgb(166, 182, 195))
+table.cell(steps_amount, 10, 1, str.tostring(truncate(((tp2_count*100)/count),0) )+"%", text_color=#000000, text_size=size.small,bgcolor =color.rgb(166, 182, 195))
+table.cell(steps_amount, 11, 1, str.tostring(truncate(((tp3_count*100)/count),0) )+"%", text_color=#000000, text_size=size.small,bgcolor =color.rgb(166, 182, 195))
+table.cell(steps_amount, 12, 1, str.tostring(truncate(((((tp1_count+tp2_count+tp3_count)/3)*100)/count),0))+"%", text_color=#000000, text_size=size.small,bgcolor =color.rgb(166, 182, 195))
