@@ -101,6 +101,20 @@ algorithmic-trading-system/
 
 ---
 
+## Development Timeline
+
+This trading execution system was developed through an extended research and development cycle from 2022 to 2024, focusing on algorithmic trading automation, futures market execution logic, and API-based order management.
+
+The system went through multiple iterations during this period, including:
+- experimental signal execution workflows
+- position management logic design
+- leverage and risk handling strategies
+- integration with futures exchange APIs
+
+The final production-ready version was stabilized and published in 2026 after structural refinements and codebase consolidation.
+
+---
+
 ## Example Signal Payload
 
 ```json
